@@ -78,29 +78,36 @@ CRITICAL INSTRUCTIONS - CONCISE & IMPACTFUL:
 - Example GOOD: "Launched product strategy driving $5M revenue and 40% user growth"
 
 1. **Professional Title & Summary** - Customize both for this role:
-   - **Title**: Replace "Product Leader" with the exact job title from the posting (e.g., "Senior Product Manager", "Director of Product", "VP of Product")
+   - **Title**: Choose a title that RESONATES with the role, not necessarily exact match
+   - Consider the seniority level, focus area, and company stage from the job description
+   - Examples: "Product Leader" for strategic roles, "Senior Product Manager" for execution-focused, "Head of Product" for leadership
+   - Make it aspirational but appropriate for the role
    - **Summary**: MAXIMUM 3 lines on page (50-60 words)
-   - Mirror the job title and key requirements from the description
+   - Position the candidate as the ideal fit for this specific role and company
    - Include 3-5 critical keywords from the job posting
-   - Make it obvious this person is perfect for THIS SPECIFIC ROLE
    - Write tight and impactful - no fluff
 
-2. **Hims, Dropbox, Postmates, and Just Eat Bullets** - HEAVILY customize each:
-   - Identify the TOP 3-5 requirements from the job description
-   - Rewrite bullets using ACTION → IMPACT structure
-   - Focus on what was DONE and the MEASURABLE RESULT
+2. **Hims, Dropbox, Postmates, and Just Eat Bullets** - Create COMPELLING, SPECIFIC stories:
+   - For EACH bullet, focus on: What was DELIVERED + What IMPACT it drove
+   - Be SPECIFIC about the deliverable (product, feature, system, process, strategy)
+   - Be SPECIFIC about the impact (revenue, growth, efficiency, user metrics)
+   - Use the job description to understand what matters to this company
+   - Take REASONABLE CREATIVE LIBERTIES to make bullets relevant:
+     * If JD emphasizes "data-driven decisions", highlight analytics/metrics work
+     * If JD emphasizes "scale", emphasize growth numbers and infrastructure
+     * If JD emphasizes "0-1 products", highlight launches and innovation
+     * If JD emphasizes "cross-functional", highlight collaboration and alignment
+   - Connect past experience to future role needs - show transferable impact
    - Use EXACT keywords from the job posting where truthful
    - Include specific numbers, percentages, dollar amounts, timeframes
-   - Avoid describing job duties - highlight achievements and outcomes
-   - Make every bullet feel like a success story aligned with this job
-   - CRITICAL: Within each job section, bullets must address DIFFERENT aspects (don't repeat themes)
-   - For example: one bullet on product launch, one on team/process, one on metrics/optimization
-   - Vary the focus: strategy, execution, results, scale, innovation, etc.
+   - CRITICAL: Within each job section, bullets must address DIFFERENT aspects
+   - Vary the focus: product launches, infrastructure/systems, team/process, growth/optimization, innovation
    - CRITICAL: Each bullet MUST be MAXIMUM 20-25 words
-   - Be ruthlessly concise - action, outcome, numbers
+   - Be ruthlessly concise - delivery, impact, numbers
    - ALWAYS use "$" for currency (not "£" or other symbols)
    - Never use em dashes "—"
-   - Format: [Strong Verb] [What] [Impact with numbers]
+   - Format: [Strong Verb] [Specific Deliverable] [Specific Impact with numbers]
+   - Example: "Launched ML recommendation engine processing 10M+ daily requests, increasing conversion 15% and driving $8M revenue"
 
 3. **Skills Section** - STRICT ATS optimization requirements:
    - List ONLY 8-10 most relevant TECHNICAL/TOOL skills from job description
