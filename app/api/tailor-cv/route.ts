@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import PizZip from 'pizzip';
 import mammoth from 'mammoth';
+import libre from 'libreoffice-convert';
+import { promisify } from 'util';
 
 export const maxDuration = 60; // Set max duration for serverless function
 
@@ -151,9 +153,78 @@ Include ALL bullets from Hims, Dropbox, Postmates, and Just Eat. Return ONLY val
       // Remove markdown code blocks if present
       const jsonText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       tailoredContent = JSON.parse(jsonText);
-    } catch (error) {
+    } catch {
       console.error('Failed to parse Claude response:', responseText);
       throw new Error('Failed to parse AI response');
+    }
+
+    // Second pass: Polish the content for readability
+    const polishPrompt = `You are a professional CV editor. Review the following tailored CV content and make it more natural, readable, and less jargony while maintaining all keywords and metrics.
+
+CONTENT TO POLISH:
+Title: ${tailoredContent.title}
+Summary: ${tailoredContent.summary}
+
+Bullets:
+${tailoredContent.bullets.map((b, i) => `${i + 1}. ${b.tailored}`).join('\n')}
+
+Skills: ${tailoredContent.skills}
+
+INSTRUCTIONS:
+- Make the language flow naturally - avoid corporate buzzwords and jargon
+- Keep it professional but human-readable
+- Maintain ALL numbers, metrics, and technical terms
+- Keep ALL ATS keywords from the original
+- Fix any awkward phrasing or repetitive language
+- Ensure bullets read smoothly and professionally
+- Keep the same length or shorter
+- Don't add new information - just polish what's there
+
+Return the polished content in this EXACT JSON format:
+{
+  "title": "polished title",
+  "summary": "polished summary",
+  "bullets": ["polished bullet 1", "polished bullet 2", ...],
+  "skills": "polished skills"
+}
+
+Return ONLY valid JSON, no additional text.`;
+
+    const polishMessage = await client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: polishPrompt,
+        },
+      ],
+    });
+
+    const polishResponseText = polishMessage.content[0].type === 'text'
+      ? polishMessage.content[0].text
+      : '';
+
+    // Parse polished response
+    let polishedContent: { title: string; summary: string; bullets: string[]; skills: string };
+    try {
+      const polishJsonText = polishResponseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      polishedContent = JSON.parse(polishJsonText);
+
+      // Update tailoredContent with polished versions
+      tailoredContent.title = polishedContent.title;
+      tailoredContent.summary = polishedContent.summary;
+      tailoredContent.skills = polishedContent.skills;
+
+      // Map polished bullets back to original structure
+      polishedContent.bullets.forEach((polishedBullet, index) => {
+        if (tailoredContent.bullets[index]) {
+          tailoredContent.bullets[index].tailored = polishedBullet;
+        }
+      });
+    } catch {
+      console.warn('Failed to parse polish response, using original');
+      // Continue with original tailoredContent if polish fails
     }
 
     // Load the docx file as a zip
@@ -194,14 +265,14 @@ Include ALL bullets from Hims, Dropbox, Postmates, and Just Eat. Return ONLY val
       let fullText = '';
       const matches: { text: string; fullMatch: string; index: number }[] = [];
 
-      let match;
-      while ((match = textNodePattern.exec(xml)) !== null) {
+      let textMatch;
+      while ((textMatch = textNodePattern.exec(xml)) !== null) {
         matches.push({
-          text: match[1],
-          fullMatch: match[0],
-          index: match.index
+          text: textMatch[1],
+          fullMatch: textMatch[0],
+          index: textMatch.index
         });
-        fullText += match[1];
+        fullText += textMatch[1];
       }
 
       if (fullText.includes(original)) {
@@ -261,7 +332,7 @@ Include ALL bullets from Hims, Dropbox, Postmates, and Just Eat. Return ONLY val
     const originalSummary = cvContent.match(summaryPattern)?.[0] || '';
     if (originalSummary) {
       // Remove em dashes from summary
-      let cleanSummary = tailoredContent.summary.replace(/—/g, '-').replace(/–/g, '-');
+      const cleanSummary = tailoredContent.summary.replace(/—/g, '-').replace(/–/g, '-');
       modifiedXml = replaceInXml(modifiedXml, originalSummary, cleanSummary);
     }
 
@@ -299,7 +370,7 @@ Include ALL bullets from Hims, Dropbox, Postmates, and Just Eat. Return ONLY val
 
     // Fix dollar sign formatting - remove any special styling that might make it smaller
     // Look for dollar signs that might be in different font sizes or styles
-    modifiedXml = modifiedXml.replace(/<w:rPr>[\s\S]*?<\/w:rPr>[\s]*<w:t[^>]*>\$<\/w:t>/g, (match) => {
+    modifiedXml = modifiedXml.replace(/<w:rPr>[\s\S]*?<\/w:rPr>[\s]*<w:t[^>]*>\$<\/w:t>/g, () => {
       // Replace with clean dollar sign without special formatting
       return '<w:t xml:space="preserve">$</w:t>';
     });
@@ -327,8 +398,6 @@ Include ALL bullets from Hims, Dropbox, Postmates, and Just Eat. Return ONLY val
       fileExtension = '.docx';
     } else {
       // Convert docx to PDF using libreoffice
-      const libre = require('libreoffice-convert');
-      const { promisify } = require('util');
       const convertAsync = promisify(libre.convert);
 
       try {
@@ -346,7 +415,7 @@ Include ALL bullets from Hims, Dropbox, Postmates, and Just Eat. Return ONLY val
     }
 
     // Return the file with proper filename
-    return new NextResponse(finalBuffer, {
+    return new NextResponse(finalBuffer as unknown as BodyInit, {
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="Michael Novack CV${fileExtension}"`,
