@@ -1,14 +1,60 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [jobUrl, setJobUrl] = useState('');
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'input' | 'processing' | 'complete'>('input');
-  const [tailoredCV, setTailoredCV] = useState('');
+  const [downloadUrl, setDownloadUrl] = useState('');
+  const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
+  const [useDefaultCV, setUseDefaultCV] = useState(true);
+
+  // Load default CV on mount
+  useEffect(() => {
+    const loadDefaultCV = async () => {
+      try {
+        const response = await fetch('/default-cv.docx');
+        const blob = await response.blob();
+        const file = new File([blob], 'Michael Novack CV.docx', {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        setCvFile(file);
+      } catch (error) {
+        console.error('Failed to load default CV:', error);
+      }
+    };
+
+    loadDefaultCV();
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (file) {
+      setCvFile(file);
+      setUseDefaultCV(false);
+    }
+  };
+
+  const handleUseDefault = () => {
+    const loadDefaultCV = async () => {
+      try {
+        const response = await fetch('/default-cv.docx');
+        const blob = await response.blob();
+        const file = new File([blob], 'Michael Novack CV.docx', {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        setCvFile(file);
+        setUseDefaultCV(true);
+      } catch (error) {
+        console.error('Failed to load default CV:', error);
+      }
+    };
+
+    loadDefaultCV();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +87,30 @@ export default function Home() {
       });
 
       if (!tailorResponse.ok) {
-        throw new Error('Failed to tailor CV');
+        const errorData = await tailorResponse.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to tailor CV');
       }
 
-      const { tailoredCV: cv } = await tailorResponse.json();
-      setTailoredCV(cv);
+      // Get the blob (docx file)
+      const blob = await tailorResponse.blob();
+      const url = URL.createObjectURL(blob);
+
+      setDownloadUrl(url);
+
+      // Set filename based on content type
+      const contentType = tailorResponse.headers.get('content-type');
+      const isPdf = contentType?.includes('pdf');
+      const filename = isPdf ? 'Michael Novack CV.pdf' : 'Michael Novack CV.docx';
+      setFileName(filename);
       setStep('complete');
+
+      // Auto-download the file
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+      }, 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setStep('input');
@@ -55,54 +119,72 @@ export default function Home() {
     }
   };
 
-  const handleDownloadPDF = () => {
-    // Create a simple PDF using browser print
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Michael Novack CV</title>
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                max-width: 800px;
-                margin: 40px auto;
-                padding: 20px;
-                line-height: 1.6;
-              }
-              h1, h2, h3 { margin-top: 20px; }
-              @media print {
-                body { margin: 0; padding: 20px; }
-              }
-            </style>
-          </head>
-          <body>
-            <pre style="white-space: pre-wrap; font-family: Arial, sans-serif;">${tailoredCV}</pre>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-    }
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = fileName;
+    a.click();
   };
 
-  const handleDownloadText = () => {
-    const blob = new Blob([tailoredCV], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'Michael_Novack_CV.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownloadDocx = async () => {
+    try {
+      setLoading(true);
+
+      // Get the job description again
+      const extractResponse = await fetch('/api/extract-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: jobUrl }),
+      });
+
+      if (!extractResponse.ok) {
+        throw new Error('Failed to extract job description');
+      }
+
+      const { jobDescription } = await extractResponse.json();
+
+      // Request docx format
+      const formData = new FormData();
+      formData.append('jobDescription', jobDescription);
+      formData.append('cvFile', cvFile!);
+      formData.append('format', 'docx');
+
+      const tailorResponse = await fetch('/api/tailor-cv', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!tailorResponse.ok) {
+        const errorData = await tailorResponse.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to tailor CV');
+      }
+
+      const blob = await tailorResponse.blob();
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Michael Novack CV.docx';
+      a.click();
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleReset = () => {
     setJobUrl('');
-    setCvFile(null);
-    setTailoredCV('');
+    handleUseDefault();
+    setDownloadUrl('');
+    setFileName('');
     setStep('input');
     setError('');
+    if (downloadUrl) {
+      URL.revokeObjectURL(downloadUrl);
+    }
   };
 
   return (
@@ -143,14 +225,32 @@ export default function Home() {
                 >
                   Your CV (Word Document)
                 </label>
-                <input
-                  type="file"
-                  id="cvFile"
-                  accept=".docx,.doc"
-                  onChange={(e) => setCvFile(e.target.files?.[0] || null)}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                />
+                <div className="space-y-3">
+                  {useDefaultCV && cvFile && (
+                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Using default CV: {cvFile.name}
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    id="cvFile"
+                    accept=".docx,.doc"
+                    onChange={handleFileChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                  {!useDefaultCV && cvFile && (
+                    <button
+                      type="button"
+                      onClick={handleUseDefault}
+                      className="text-sm text-indigo-600 hover:text-indigo-700"
+                    >
+                      Use default CV instead
+                    </button>
+                  )}
+                </div>
               </div>
 
               {error && (
@@ -161,7 +261,7 @@ export default function Home() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !cvFile}
                 className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? 'Processing...' : 'Tailor CV'}
@@ -187,24 +287,31 @@ export default function Home() {
                 ✓ Your CV has been successfully tailored!
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-6 max-h-96 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
-                  {tailoredCV}
-                </pre>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Ready to Download
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Your tailored CV is ready. Only the summary and bullet points have been updated to match the job description, while preserving all original formatting.
+                </p>
+                <p className="text-sm text-gray-500">
+                  File: {fileName}
+                </p>
               </div>
 
               <div className="flex gap-4">
                 <button
-                  onClick={handleDownloadPDF}
+                  onClick={handleDownload}
                   className="flex-1 bg-indigo-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
                 >
-                  Download as PDF
+                  Download PDF
                 </button>
                 <button
-                  onClick={handleDownloadText}
-                  className="flex-1 bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                  onClick={handleDownloadDocx}
+                  disabled={loading}
+                  className="flex-1 bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
-                  Download as Text
+                  {loading ? 'Processing...' : 'Download DOCX'}
                 </button>
               </div>
 
